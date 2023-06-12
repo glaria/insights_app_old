@@ -13,6 +13,21 @@ def zscore(p1, p2, n1, n2): # p1, p2 proportions
 	denominator = math.sqrt(p*(1-p)*((1/n1)+(1/n2)))
 	return numerator/denominator
 
+def kadane_algorithm(input_list):
+    max_current = max_global = input_list[0]
+    start = end = 0
+    for i in range(1, len(input_list)):
+        if input_list[i] > max_current + input_list[i]:
+            max_current = input_list[i]
+            start = i
+        else:
+            max_current += input_list[i]
+        if max_current > max_global:
+            max_global = max_current
+            end = i
+    return max_global, start, end
+
+
 
 def infer_datatypes_and_metatypes(dataset: pd.DataFrame) -> pd.DataFrame:
     info_data = {'COLUMN': [], 'DATATYPE': [], 'METATYPE': []}

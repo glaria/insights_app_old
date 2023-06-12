@@ -13,7 +13,7 @@ st.markdown(
     Machine Learning and Data Science projects.
     **👈 
     
-    ### Link to Confluence documentation
+    ### Documentation should go in here
     - Info about the link [text in the link](https://github.com/streamlit/demo-self-driving)
 """
 )
