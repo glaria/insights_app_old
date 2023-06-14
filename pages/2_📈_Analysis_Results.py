@@ -17,8 +17,34 @@ def highlight_pvalue(row):
         return ["background-color: lightgreen"] * len(row)
     return [""] * len(row)
 
-def calculate_metrics(subset, kpi):
+def calculate_metrics(df, kpi_columns, tgcg_column):
+    """Calculates metrics for a list of KPIs."""
+    metrics = []
+    for kpi in kpi_columns:
+        tg = df[df[tgcg_column] == 'target']
+        cg = df[df[tgcg_column] == 'control']
+
+        tg_acceptors = tg[kpi].sum()
+        tg_total = len(tg)
+        tg_acceptance = round((tg_acceptors / tg_total)*100,2) if tg_total != 0 else 0
+
+        cg_acceptors = cg[kpi].sum()
+        cg_total = len(cg)
+        cg_acceptance = round((cg_acceptors / cg_total) * 100, 2) if cg_total != 0 else 0
+
+        uplift = tg_acceptance - cg_acceptance
+        p_value = z2p(zscore(tg_acceptors/tg_total, cg_acceptors/cg_total, tg_total, cg_total)) if tg_total != 0 and cg_total != 0 else None
+
+        metrics.append([kpi, "{:.2f}".format(tg_acceptors), "{:.2f}".format(tg_acceptance), "{:.2f}".format(cg_acceptors), "{:.2f}".format(cg_acceptance), "{:.2f}".format(uplift), p_value])
+
+    result_df = pd.DataFrame(metrics, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
+    result_df['P-value'] = pd.to_numeric(result_df['P-value'], errors='coerce')
+
+    return result_df
+
+def calculate_metrics2(subset, kpi, tgcg_column):
     """Calculates metrics for a specific KPI."""
+    metrics = []
     tg_acceptors = subset.loc[subset[tgcg_column] == 'target', kpi].sum()
     tg_total = len(subset.loc[subset[tgcg_column] == 'target'])
     tg_acceptance = round((tg_acceptors / tg_total)*100,2) if tg_total != 0 else 0
@@ -29,8 +55,18 @@ def calculate_metrics(subset, kpi):
 
     uplift = tg_acceptance - cg_acceptance
     p_value = z2p(zscore(float(tg_acceptors)/float(tg_total), float(cg_acceptors)/float(cg_total),float(tg_total), float(cg_total))) if tg_total != 0 and cg_total != 0 else None
+    
+    metrics.append([kpi, "{:.2f}".format(tg_acceptors), "{:.2f}".format(tg_acceptance), "{:.2f}".format(cg_acceptors), "{:.2f}".format(cg_acceptance), "{:.2f}".format(uplift), p_value])
+    result_df = pd.DataFrame(metrics, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
+    result_df['P-value'] = pd.to_numeric(result_df['P-value'], errors='coerce')
+    return result_df
 
-    return [kpi, tg_acceptors, tg_acceptance, cg_acceptors, cg_acceptance, uplift, p_value]
+def filter_and_display(df, pvalue_threshold, seg_column, unique_value):
+    """Filters and displays the results."""
+    df = df[df['P-value'] <= pvalue_threshold]
+    if not df.empty:
+        print(f"Segment: {seg_column} = {unique_value}")
+        print(df.to_string(index=False)) # Display the dataframe without the index
 
 def download_csv_link(df, filename, message="Click here to download this table"):
     csv = df.to_csv(index=False)
@@ -67,7 +103,7 @@ st.plotly_chart(fig)
 kpi_columns = information_dataset.loc[information_dataset['METATYPE'] == 'KPI', 'COLUMN'].values
 
 # Calculate metrics for each KPI and store the results in a list
-results = [calculate_metrics(dataset, kpi) for kpi in kpi_columns]
+results = calculate_metrics(dataset, kpi_columns, tgcg_column) 
 
 # Convert the list of results to a pandas DataFrame
 result_df = pd.DataFrame(results, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
@@ -84,6 +120,7 @@ st.markdown(download_csv_link(result_df, "results.csv"), unsafe_allow_html=True)
 # Segment fields
 st.markdown(f"# Segments with significant results")
 # 1. Identify the segmentation columns
+
 segmentation_columns = information_dataset.loc[(information_dataset['METATYPE'] == 'SF') & 
                                               (information_dataset['DATATYPE'].isin(['NUM_ST', 'BOOL', 'STRING'])), 
                                               'COLUMN'].values
@@ -91,108 +128,123 @@ continue_segmentation_columns = information_dataset.loc[(information_dataset['ME
                                               (information_dataset['DATATYPE'].isin(['NUMERIC'])), 
                                               'COLUMN'].values
 #st.write(continue_segmentation_columns)
-# 2. For each segmentation column, get all unique values.
+# iterate over segmentation columns
 for seg_column in segmentation_columns:
-    unique_values = dataset[seg_column].unique()
-
-    for unique_value in unique_values:
+    for unique_value in dataset[seg_column].unique():
         subset = dataset[dataset[seg_column] == unique_value]
-        results = [calculate_metrics(subset, kpi) for kpi in kpi_columns]
-
-        result_df = pd.DataFrame(results, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
-        result_df = result_df.applymap(format_float)
-
-        # Convert the 'P-value' column to numeric
-        result_df['P-value'] = pd.to_numeric(result_df['P-value'], errors='coerce')
-
-        # Filter the DataFrame to only include rows with P-value <= significance_treshold
+        result_df = calculate_metrics(subset, kpi_columns, tgcg_column)
         result_df = result_df[result_df['P-value'] <= significance_treshold]
-
         if not result_df.empty:
-            highlighted_df = result_df.style.apply(highlight_pvalue, axis=1)
             st.markdown(f"Segment: {seg_column} = {unique_value}")
-            st.write(highlighted_df)
-            st.markdown(download_csv_link(result_df, f"results_{seg_column}_{unique_value}.csv"), unsafe_allow_html=True)
+            st.dataframe(result_df.style.apply(highlight_pvalue, axis=1)) # Use st.dataframe() to display the dataframe in Streamlit
+
+            #st.markdown(download_csv_link(result_df, f"results_{seg_column}_{unique_value}.csv"), unsafe_allow_html=True)
+
 
 ##seccion variables segmentacion continuas
 #Para calcular los mejores segmentos (intervalos) de variables continuas (sin definir cuantiles ) primero debemos reescalar el control group para tener el mismo número de elementos que target
-# Identificar las clases minoritaria y mayoritaria
+
+# Identify the continuous segmentation columns
+continuous_segmentation_columns = information_dataset.loc[
+    (information_dataset['METATYPE'] == 'SF') & 
+    (information_dataset['DATATYPE'].isin(['NUMERIC'])), 'COLUMN'].values
+
+# Identify the minority and majority classes
 minority_class = dataset[tgcg_column].value_counts().idxmin()
 majority_class = dataset[tgcg_column].value_counts().idxmax()
 
-# Separar el dataset en dos según la clase minoritaria y mayoritaria
+# Split the dataset into two based on the minority and majority classes
 minority_df = dataset[dataset[tgcg_column] == minority_class]
 majority_df = dataset[dataset[tgcg_column] == majority_class]
 
-# Sobremuestrear la clase minoritaria
+# Oversample the minority class
 minority_oversampled = minority_df.sample(len(majority_df), replace=True, random_state=42)
 
-# Combina el dataframe sobremuestreado con el dataframe de la clase mayoritaria
+# Combine the oversampled dataframe with the majority class dataframe
 oversampled_df = pd.concat([majority_df, minority_oversampled], axis=0)
 
+# Create an empty DataFrame to store the results
+results_df = pd.DataFrame(columns=["Segmentation Field", "Lower limit", "Upper limit", "KPI", "TG Acceptors", "CG Acceptors", "Uplift (%)", "P-value"])
 
-#ahora iteramos sobre los diferentes campos numericos para los que queremos calcular los mejores segmentos
-for seg_column in continue_segmentation_columns:
+# Iterate over the different numerical fields for which we want to calculate the best intervals
+for seg_column in continuous_segmentation_columns:
     for kpi in kpi_columns:
-        # Crear un dataframe solo con los registros de 'target'
+        # Create a dataframe with 'target' records only
         target_df = oversampled_df[oversampled_df[tgcg_column] == 'target'][[tgcg_column, seg_column,kpi]]
 
-        # Crear un dataframe solo con los registros de 'control'
+        #calculate target acceptance (to be used as a penalty in the Kadane's algorithm )
+        target_acceptance = target_df[kpi].sum()/len(target_df)
+
+        # Create a dataframe with 'control' records only
         control_df = oversampled_df[oversampled_df[tgcg_column] == 'control'][[tgcg_column, seg_column,kpi]]
 
-        # Ordenar los dataframes
-        target_df = target_df.sort_values(by=seg_column)
-        control_df = control_df.sort_values(by=seg_column)
+        #this penalty is added to avoid segments with a lot of zeroes in the kadane algorithm
+        control_df[kpi] = control_df[kpi] +target_acceptance 
 
-        # Resetear los índices de los dataframes
+        # Sort the dataframes
+        target_df.sort_values(by=seg_column, inplace=True)
+        control_df.sort_values(by=seg_column, inplace=True)
+
+        # Reset the indices of the dataframes
         target_df.reset_index(drop=True, inplace=True)
         control_df.reset_index(drop=True, inplace=True)
 
-        # Renombrar las columnas en control_df antes de concatenar
+        # Rename the columns in control_df before concatenating
         control_df.columns = [col + "_control" for col in control_df.columns]
 
-        # Ahora concatenamos los dos df
+        # Concatenate the two dataframes
         concatenated_df = pd.concat([target_df, control_df], axis=1)
 
-        # Crear un nuevo dataframe con las columnas especificadas
-        new_df = pd.DataFrame()
+        # Calculate the mean of seg_column and seg_column_control, in case some values do not match exactly
+        concatenated_df[seg_column] = (concatenated_df[seg_column] + concatenated_df[seg_column + "_control"]) / 2
 
-        # Calcular la media de seg_column y seg_column_control, en caso que algunos valores no coincidan exactamente tomamos la media entre ambos
-        #esto normalmente no tendrá efecto, siempre que tg y cg sean homogeneos
-        new_df[seg_column] = (concatenated_df[seg_column] + concatenated_df[seg_column + "_control"]) / 2
+        # Calculate the difference between kpi and kpi_control
+        concatenated_df['granular_uplift'] = concatenated_df[kpi] - concatenated_df[kpi + "_control"]
 
-        # Calcular la diferencia entre kpi y kpi_control
-        new_df['granular_uplift'] = concatenated_df[kpi] - concatenated_df[kpi + "_control"]
-
-        #ahora hay que encontrar los subintervalos que maximicen (o minimicen) la suma de granular_uplift
-
-        granular_uplift_array = new_df['granular_uplift'].values
+        # Find the subintervals that maximize the sum of granular_uplift
+        granular_uplift_array = concatenated_df['granular_uplift'].values
         max_granular_uplift, start_index, end_index = kadane_algorithm(granular_uplift_array)
 
-    
-        # Obtén los valores de inicio y fin desde 'new_df' usando los índices obtenidos
-        start_value = new_df.iloc[start_index][seg_column]
-        end_value = new_df.iloc[end_index][seg_column]
+        # Ensure that start_index is less than or equal to end_index
+        if start_index > end_index:
+            start_index, end_index = end_index, start_index
 
-        # Filtra el dataframe 'dataset' para quedarte solo con las filas donde el valor en 'seg_column' está entre 'start_value' y 'end_value'
+        # Get the start and end values from 'concatenated_df' using the indices obtained
+        start_value = concatenated_df.iloc[start_index][seg_column]
+        end_value = concatenated_df.iloc[end_index][seg_column]
+
+        # Filter the 'dataset' dataframe to keep only the rows where the value in 'seg_column' is between 'start_value' and 'end_value'
         filtered_dataset = dataset[(dataset[seg_column] >= start_value) & (dataset[seg_column] <= end_value)]
 
-        results = [calculate_metrics(filtered_dataset, kpi)]
-
-        result_df = pd.DataFrame(results, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
-        result_df = result_df.applymap(format_float)
-
-        # Convert the 'P-value' column to numeric
-        result_df['P-value'] = pd.to_numeric(result_df['P-value'], errors='coerce')
-
-        # Filter the DataFrame to only include rows with P-value <= significance_treshold
-        result_df = result_df[result_df['P-value'] <= significance_treshold]
+        # Calculate the metrics
+        
+        result_df = calculate_metrics2(filtered_dataset, kpi, tgcg_column)
+        # Keep non-significant results as well
 
         if not result_df.empty:
-            highlighted_df = result_df.style.apply(highlight_pvalue, axis=1)
-            st.markdown(f"Segment: {seg_column} between {start_value} and {end_value}")
-            st.write(highlighted_df)
-            #st.markdown(download_csv_link(result_df, f"results_{seg_column}_{unique_value}.csv"), unsafe_allow_html=True)
+            for index, row in result_df.iterrows():
+                new_row = pd.DataFrame({
+                    "Segmentation Field": [seg_column],
+                    "Lower limit": [start_value],
+                    "Upper limit": [end_value],
+                    "KPI": [kpi],
+                    "TG Acceptors": [row["TG Acceptors"]],
+                    #"TG Acceptance (%)": [row["TG Acceptance (%)"]],
+                    "CG Acceptors": [row["CG Acceptors"]],
+                    #"CG Acceptance (%)": [row["CG Acceptance (%)"]],
+                    "Uplift (%)": [row["Uplift (%)"]],
+                    "P-value": [row["P-value"]],
+                })
+                results_df = pd.concat([results_df, new_row], ignore_index=True)
+
+results_df["TG Acceptors"] = results_df["TG Acceptors"].astype(float).round(0).astype(int)
+results_df["CG Acceptors"] = results_df["CG Acceptors"].astype(float).round(0).astype(int)
+
+st.markdown(f"# Best intervals for continuous variables")
+
+
+st.dataframe(results_df.style.apply(highlight_pvalue, axis=1))            
+#st.markdown(download_csv_link(results_df, f"results_{seg_column}_{unique_value}.csv"), unsafe_allow_html=True)
 
 ##fin seccion variables segmentacion continuas
 
@@ -213,40 +265,39 @@ def calculate_relative_uplift(subset, kpi1, kpi2, value1, value2):
 st.markdown(f"# Cross-KPI results")
 
 
-# Crear un DataFrame vacío con las etiquetas de los KPIs como índices y columnas.
-kpi_labels = [f'{kpi}_{val}' for kpi in kpi_columns for val in [0, 1]]
+# Create an empty DataFrame with KPI labels as indices and columns.
+kpi_labels = [f'{kpi} = {val}' for kpi in kpi_columns for val in [0, 1]]
 matrix_df = pd.DataFrame(index=kpi_labels, columns=kpi_labels)
 
-# Rellenar la matriz con los uplifts relativos.
+# Fill matrix with relative uplifts
 for row_label, col_label in itertools.product(kpi_labels, repeat=2):
-    kpi1, value1 = row_label.split('_')
-    kpi2, value2 = col_label.split('_')
+    kpi1, value1 = row_label.split(' = ')
+    kpi2, value2 = col_label.split(' = ')
     matrix_df.loc[row_label, col_label] = calculate_relative_uplift(dataset, kpi1, kpi2, int(value1), int(value2))
 
-# Mostrar la matriz en la interfaz de usuario
+# Display the matrix in the user interface
 st.write(matrix_df)
 
-
-# Definir colores para el mapa de calor: verde para valores positivos, rojo para valores negativos.
+# Define colors for the heatmap: green for positive values, red for negative values.
 colors = ['red', 'lightgray', 'green']
 
-# Primero convertimos los valores a numéricos, forzando los no numéricos a NaN
+# First we convert the values to numeric, forcing non-numerics to NaN
 values = pd.to_numeric(matrix_df.values.flatten(), errors='coerce').reshape(matrix_df.values.shape)
 
-# Ahora reemplazamos los NaN por 0
+# Now we replace NaNs with 0
 values = np.where(np.isnan(values), 0, values)
 
-# Convierte los valores numéricos a strings con dos decimales
+# Convert numeric values to strings with two decimal places
 text_values = np.round(values, 0).astype(int).astype(str)
-# Concatena '%' a cada elemento individualmente
+# Append '%' to each individual item
 text = [f"{val}%" for val in text_values.flatten()]
-# Vuelve a dar forma al array
+# Reshape the array
 text = np.array(text).reshape(values.shape)
 
 fig = go.Figure(data=go.Heatmap(
     z=values,
     x=matrix_df.columns,
-    y=matrix_df.index,
+    y=matrix_df.index[::-1],  # Reverse the order of the index for the heatmap
     colorscale=colors,
     zmid=0,
     text=text,
@@ -255,18 +306,15 @@ fig = go.Figure(data=go.Heatmap(
     hoverongaps = False
 ))
 
-
-# Ajustar el layout de la figura.
+# Adjust the layout of the figure.
 fig.update_layout(
     title='Heatmap of Relative Uplift',
     xaxis_nticks=len(matrix_df.columns),
     yaxis_nticks=len(matrix_df.index)
 )
 
-# Mostrar la figura en la interfaz de usuario de Streamlit.
+# Display the figure in the Streamlit user interface.
 st.plotly_chart(fig)
 
-st.write("Pending to include: 1) Order of column/rows in heatmap,")
-st.write("2) Cambiar/resaltar bordes de las cells si significant")
-st.write(" 3) related to 2, modify function to support p-value (or adapt calculate_metrics with optional input parameters")
+
 st.write("4) Add filter feature to select certain values of segmentation columns")
