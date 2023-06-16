@@ -5,8 +5,8 @@ import lightgbm as lgb
 from lightgbm import LGBMRegressor
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import plot_tree
-from sklearn.tree import _tree
 from app_functions import *
+from sklearn.tree import _tree
 
 # CSS to change background color
 st.markdown(
@@ -57,7 +57,10 @@ continue_segmentation_columns = information_dataset.loc[(information_dataset['ME
 for col in segmentation_columns:
     dataset[col] = dataset[col].astype('category')
 
+dataset_fix = dataset.copy() #store a copy of the dataset
+
 for kpi in kpi_columns:
+    dataset = dataset_fix.copy() #after the first iteration we need to use a clean version of the dataset
     dataset_copy = dataset.copy()
     kpi_original = kpi
     #create model_target column ()
@@ -110,8 +113,10 @@ for kpi in kpi_columns:
     # Remove "_model_target" from the kpi variable and set the title of the plot
     kpi_name = kpi.replace("_model_target", "")
     st.header(f"Model scores of the kpi: {kpi_name}")
-    st.dataframe(dataset.drop(columns = ['tgcg_fl']))
-    st.write ("include link to download df")
+    st.write(dataset.drop(columns = ['tgcg_fl']))
+    filename = f"model_kpi_{kpi_name}.csv"
+    st.markdown(download_csv_link(dataset.drop(columns = ['tgcg_fl']), filename), unsafe_allow_html=True)
+
 
     #now we explain the model
 

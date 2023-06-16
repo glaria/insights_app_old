@@ -49,7 +49,7 @@ st.write(highlighted_df)
 st.markdown(download_csv_link(result_df, "results.csv"), unsafe_allow_html=True)
 
 # Segment fields
-st.markdown(f"# Segments with significant results")
+st.markdown(f"# Discrete Segments with significant results")
 # 1. Identify the segmentation columns
 
 segmentation_columns = information_dataset.loc[(information_dataset['METATYPE'] == 'SF') & 
@@ -60,14 +60,33 @@ continue_segmentation_columns = information_dataset.loc[(information_dataset['ME
                                               'COLUMN'].values
 #st.write(continue_segmentation_columns)
 # iterate over segmentation columns
+
+# Create an empty list to store all result DataFrames
+all_results = []
+
 for seg_column in segmentation_columns:
     for unique_value in dataset[seg_column].unique():
         subset = dataset[dataset[seg_column] == unique_value]
         result_df = calculate_metrics(subset, kpi_columns, tgcg_column)
         result_df = result_df[result_df['P-value'] <= significance_treshold]
         if not result_df.empty:
-            st.markdown(f"Segment: {seg_column} = {unique_value}")
-            st.dataframe(result_df.style.apply(highlight_pvalue, axis=1)) # Use st.dataframe() to display the dataframe in Streamlit
+            # Add 'Segmentation Column' to result_df
+            result_df.insert(0, 'Segmentation Column', seg_column)
+            # Add 'value' column to result_df
+            result_df.insert(1, 'value', unique_value)
+            # Add result_df to all_results list
+            all_results.append(result_df)
+
+# Concatenate all the DataFrames in the all_results list
+all_results_df = pd.concat(all_results)
+
+# Reset the DataFrame's index to ensure it is unique
+all_results_df.reset_index(drop=True, inplace=True)
+
+#apply the style and display de df
+st.dataframe(all_results_df.style.apply(highlight_pvalue, axis=1))
+
+
 
             #st.markdown(download_csv_link(result_df, f"results_{seg_column}_{unique_value}.csv"), unsafe_allow_html=True)
 
@@ -95,7 +114,7 @@ minority_oversampled = minority_df.sample(len(majority_df), replace=True, random
 oversampled_df = pd.concat([majority_df, minority_oversampled], axis=0)
 
 # Create an empty DataFrame to store the results
-results_df = pd.DataFrame(columns=["Segmentation Field", "Lower limit", "Upper limit", "KPI", "TG Acceptors", "CG Acceptors", "Uplift (%)", "P-value"])
+results_df = pd.DataFrame(columns=["Segmentation Field", "Lower limit", "Upper limit", "KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
 
 # Iterate over the different numerical fields for which we want to calculate the best intervals
 for seg_column in continuous_segmentation_columns:
@@ -160,9 +179,9 @@ for seg_column in continuous_segmentation_columns:
                     "Upper limit": [end_value],
                     "KPI": [kpi],
                     "TG Acceptors": [row["TG Acceptors"]],
-                    #"TG Acceptance (%)": [row["TG Acceptance (%)"]],
+                    "TG Acceptance (%)": [row["TG Acceptance (%)"]],
                     "CG Acceptors": [row["CG Acceptors"]],
-                    #"CG Acceptance (%)": [row["CG Acceptance (%)"]],
+                    "CG Acceptance (%)": [row["CG Acceptance (%)"]],
                     "Uplift (%)": [row["Uplift (%)"]],
                     "P-value": [row["P-value"]],
                 })
