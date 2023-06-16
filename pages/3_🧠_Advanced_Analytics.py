@@ -1,31 +1,12 @@
 import streamlit as st
-import numpy as np
-import pandas as pd
 from matplotlib import pyplot as plt
-import seaborn as sns
 import lightgbm as lgb
-from sklearn.model_selection import train_test_split
+#from sklearn.model_selection import train_test_split
 from lightgbm import LGBMRegressor
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import plot_tree
 from sklearn.tree import _tree
 from app_functions import *
-
-
-significance_treshold = 0.1
-
-def oversample(df, group_cols):
-    # Encontrar el tamaño del grupo más grande
-    max_size = df[group_cols].value_counts().max()
-    # Inicializar un nuevo DataFrame vacío para guardar los datos sobremuestreados
-    df_oversampled = pd.DataFrame()
-    # Agrupar por las columnas de grupo y sobremuestrear cada grupo
-    for group, group_df in df.groupby(group_cols):
-        oversampled_group = group_df.sample(max_size, replace=True)
-        df_oversampled = pd.concat([df_oversampled, oversampled_group], axis=0)
-
-    # Devolver el DataFrame sobremuestreado
-    return df_oversampled
 
 # CSS to change background color
 st.markdown(
@@ -245,7 +226,6 @@ for kpi in kpi_columns:
         return rules
 
     # Use the function to get the rules
-
 
     rules_top25 = get_rules(dt_model, X_binary_encoded.columns, dt_model.classes_, 'Top25%')
     rules_Bottom25 = get_rules(dt_model, X_binary_encoded.columns, dt_model.classes_, 'Bottom25%')

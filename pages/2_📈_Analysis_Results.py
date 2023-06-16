@@ -1,51 +1,9 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
 import plotly.express as px
 from app_functions import *
-import base64
-import io
 import itertools
 import plotly.graph_objects as go
 
-
-def calculate_metrics(df, kpi_columns, tgcg_column):
-    """Calculates metrics for a list of KPIs."""
-    metrics = []
-    for kpi in kpi_columns:
-        tg = df[df[tgcg_column] == 'target']
-        cg = df[df[tgcg_column] == 'control']
-
-        tg_acceptors = tg[kpi].sum()
-        tg_total = len(tg)
-        tg_acceptance = round((tg_acceptors / tg_total)*100,2) if tg_total != 0 else 0
-
-        cg_acceptors = cg[kpi].sum()
-        cg_total = len(cg)
-        cg_acceptance = round((cg_acceptors / cg_total) * 100, 2) if cg_total != 0 else 0
-
-        uplift = tg_acceptance - cg_acceptance
-        p_value = z2p(zscore(tg_acceptors/tg_total, cg_acceptors/cg_total, tg_total, cg_total)) if tg_total != 0 and cg_total != 0 else None
-
-        metrics.append([kpi, "{:.2f}".format(tg_acceptors), "{:.2f}".format(tg_acceptance), "{:.2f}".format(cg_acceptors), "{:.2f}".format(cg_acceptance), "{:.2f}".format(uplift), p_value])
-
-    result_df = pd.DataFrame(metrics, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
-    result_df['P-value'] = pd.to_numeric(result_df['P-value'], errors='coerce')
-
-    return result_df
-
-def filter_and_display(df, pvalue_threshold, seg_column, unique_value):
-    """Filters and displays the results."""
-    df = df[df['P-value'] <= pvalue_threshold]
-    if not df.empty:
-        print(f"Segment: {seg_column} = {unique_value}")
-        print(df.to_string(index=False)) # Display the dataframe without the index
-
-def download_csv_link(df, filename, message="Click here to download this table"):
-    csv = df.to_csv(index=False)
-    b64 = base64.b64encode(csv.encode()).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">{message}</a>'
-    return href
 
 st.set_page_config(page_title="Analysis", page_icon="📈", layout="wide",)
 
@@ -233,7 +191,6 @@ def calculate_relative_uplift(subset, kpi1, kpi2, value1, value2):
     uplift = tg_acceptance - cg_acceptance
     relative_uplift = (uplift / cg_acceptance) * 100 if cg_acceptance != 0 else 0
     return relative_uplift
-
 
 st.markdown(f"# Cross-KPI results")
 
