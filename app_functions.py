@@ -3,6 +3,9 @@ import numpy as np
 import math
 import scipy.special as scsp
 
+significance_treshold = 0.1
+
+
 def z2p(z):
     """From z-score return p-value."""
     return 2*(1- (0.5 * (1 + scsp.erf(abs(z) / math.sqrt(2)))))
@@ -98,3 +101,30 @@ def format_float(value):
     if isinstance(value, float):
         return "{:.2f}".format(value)
     return value
+
+
+def calculate_metrics2(subset, kpi, tgcg_column):
+    """Calculates metrics for a specific KPI."""
+    metrics = []
+    tg_acceptors = subset.loc[subset[tgcg_column] == 'target', kpi].sum()
+    tg_total = len(subset.loc[subset[tgcg_column] == 'target'])
+    tg_acceptance = round((tg_acceptors / tg_total)*100,2) if tg_total != 0 else 0
+
+    cg_acceptors = subset.loc[subset[tgcg_column] == 'control', kpi].sum()
+    cg_total = len(subset.loc[subset[tgcg_column] == 'control'])
+    cg_acceptance = round((cg_acceptors / cg_total) * 100, 2) if cg_total != 0 else 0
+
+    uplift = tg_acceptance - cg_acceptance
+    p_value = z2p(zscore(float(tg_acceptors)/float(tg_total), float(cg_acceptors)/float(cg_total),float(tg_total), float(cg_total))) if tg_total != 0 and cg_total != 0 else None
+    
+    metrics.append([kpi, "{:.2f}".format(tg_acceptors), "{:.2f}".format(tg_acceptance), "{:.2f}".format(cg_acceptors), "{:.2f}".format(cg_acceptance), "{:.2f}".format(uplift), p_value])
+    result_df = pd.DataFrame(metrics, columns=["KPI", "TG Acceptors", "TG Acceptance (%)", "CG Acceptors", "CG Acceptance (%)", "Uplift (%)", "P-value"])
+    result_df['P-value'] = pd.to_numeric(result_df['P-value'], errors='coerce')
+    return result_df
+
+
+def highlight_pvalue(row):
+    """Highlights rows with P-value <= significance_treshold."""
+    if float(row["P-value"]) <= significance_treshold:
+        return ["background-color: lightgreen"] * len(row)
+    return [""] * len(row)
