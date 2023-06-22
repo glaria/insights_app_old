@@ -134,6 +134,16 @@ if data is not None and len(data.columns) > 1:
     # Validate data types and meta types
     is_valid = validate_datatypes_and_metatypes(data, user_defined_info_dataset)
 
+    # remove null values based on the data types in `user_defined_info_dataset` 
+    for index, row in st.session_state.user_defined_info_dataset.iterrows():
+        column = row['COLUMN']
+        datatype = row['DATATYPE']
+
+        if datatype == 'STRING':
+            st.session_state.uploaded_data[column] = st.session_state.uploaded_data[column].fillna('NONE')
+        elif datatype == 'NUMERIC' or datatype == 'NUM_ST':
+            st.session_state.uploaded_data[column] = st.session_state.uploaded_data[column].fillna(0)
+
     if is_valid:
         if st.button("Process Data"):
             st.success("Data processing started!")

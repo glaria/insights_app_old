@@ -80,22 +80,22 @@ def validate_datatypes_and_metatypes(dataset: pd.DataFrame, info_dataset: pd.Dat
         if datatype not in datatype_values or metatype not in metatype_values:
             return False
 
-        if metatype == 'TGCG' and not dataset[column].apply(lambda x: x.lower() in ['target', 'control']).all():
+        if metatype == 'TGCG' and not dataset[column].apply(lambda x: x.lower() in ['target', 'control'] if pd.notnull(x) else True).all():
             return False
 
-        if datatype == 'BOOL' and not dataset[column].apply(lambda x: isinstance(x, bool)).all():
+        if datatype == 'BOOL' and not dataset[column].apply(lambda x: isinstance(x, bool) if pd.notnull(x) else True).all():
             return False
 
-        if datatype == 'STRING' and not dataset[column].apply(lambda x: isinstance(x, str)).all():
+        if datatype == 'STRING' and not dataset[column].apply(lambda x: isinstance(x, str) if pd.notnull(x) else True).all():
             return False
 
-        if datatype == 'NUM_ST' and not (dataset[column].nunique() < 10 and dataset[column].apply(lambda x: isinstance(x, (int, float))).all()):
+        if datatype == 'NUM_ST' and not (dataset[column].nunique() < 10 and dataset[column].apply(lambda x: isinstance(x, (int, float)) if pd.notnull(x) else True).all()):
             return False
 
-        if datatype == 'NUMERIC' and not dataset[column].apply(lambda x: isinstance(x, (int, float))).all():
+        if datatype == 'NUMERIC' and not dataset[column].apply(lambda x: isinstance(x, (int, float)) if pd.notnull(x) else True).all():
             return False
 
-        if metatype == 'KPI' and not dataset[column].apply(lambda x: isinstance(x, (int, float))).all():
+        if metatype == 'KPI' and not dataset[column].apply(lambda x: isinstance(x, (int, float)) if pd.notnull(x) else True).all():
             return False
 
     return True
