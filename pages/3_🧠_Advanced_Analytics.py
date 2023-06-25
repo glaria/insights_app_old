@@ -224,59 +224,7 @@ else:
 
     ###################################
         #explain tree rules
-        def get_rules(tree, feature_names, class_names, class_of_interest):
-            tree_ = tree.tree_
-            feature_name = [
-                feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
-                for i in tree_.feature
-            ]
-
-            paths = []
-            path = []
-
-            def recurse(node, path, paths):
-
-                if tree_.feature[node] != _tree.TREE_UNDEFINED:
-                    name = feature_name[node]
-                    threshold = tree_.threshold[node]
-                    p1, p2 = list(path), list(path)
-                    
-                    # Check if the feature is a result of one-hot encoding
-                    if '==' in name:
-                        feature, value = name.split('==')
-                        p1 += [f"({feature} <> {value})"]
-                        p2 += [f"({feature} = {value})"]
-                    else:
-                        p1 += [f"({name} <= {np.round(threshold, 2)})"]
-                        p2 += [f"({name} > {np.round(threshold, 2)})"]
-                    
-                    recurse(tree_.children_left[node], p1, paths)
-                    recurse(tree_.children_right[node], p2, paths)
-                else:
-                    path += [(tree_.value[node], tree_.n_node_samples[node])]
-                    paths += [path]
-
-            recurse(0, path, paths)
-
-            # sort by samples count
-            paths = sorted(paths, key=lambda x: x[-1][1], reverse=True)
-            # generate rules
-            rules = []
-            for path in paths:
-                rule = ""
-
-                for p in path[:-1]:
-                    if rule != "":
-                        rule += " and \n"
-                    rule += str(p)
-                
-                if class_names[np.argmax(path[-1][0][0])] == class_of_interest:
-                    rule += f"\n\n**(samples: {path[-1][1]})**"
-                    rules.append(rule)
-
-            return rules
-
-        # Use the function to get the rules
+        # Use the function get_rules to extract dt rules
 
         rules_top25 = get_rules(dt_model, X_binary_encoded.columns, dt_model.classes_, 'Top25%')
         rules_Bottom25 = get_rules(dt_model, X_binary_encoded.columns, dt_model.classes_, 'Bottom25%')

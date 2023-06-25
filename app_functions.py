@@ -173,19 +173,20 @@ def download_csv_link(df, filename, message="Click here to download this table")
 
 ###*** Functions exclusive of the Advanced Analytics page ***###
 def oversample(df, group_cols):
-    # Encontrar el tamaño del grupo más grande
+    # biggest group in terms of size
     max_size = df[group_cols].value_counts().max()
-    # Inicializar un nuevo DataFrame vacío para guardar los datos sobremuestreados
+    # empty df that will be filled in
     df_oversampled = pd.DataFrame()
-    # Agrupar por las columnas de grupo y sobremuestrear cada grupo
+    # group columns per group_cols and oversample each of the groups
     for group, group_df in df.groupby(group_cols):
         oversampled_group = group_df.sample(max_size, replace=True)
         df_oversampled = pd.concat([df_oversampled, oversampled_group], axis=0)
 
-    # Devolver el DataFrame sobremuestreado
+    # return oversampled dataframe
     return df_oversampled
 
 def get_rules(tree, feature_names, class_names, class_of_interest):
+    """ Extract the rules of a decisition tree algorithm """
     tree_ = tree.tree_
     feature_name = [
         feature_names[i] if i != _tree.TREE_UNDEFINED else "undefined!"
