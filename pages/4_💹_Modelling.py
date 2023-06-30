@@ -27,6 +27,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.write("We need to define training/test sets before training model")
+
+st.write("It would be nice to do some gridsearch on hyperparameters")
+
+
 # dataset and information_dataset
 dataset = pd.read_csv("pages/temp/uploaded_data.csv", sep = ',')  
 information_dataset = pd.read_csv("pages/temp/user_defined_info_dataset.csv", sep = ',') 
@@ -179,120 +184,3 @@ else:
 
         ax.set_title(f"Feature importance of the kpi {kpi_name}")
         st.pyplot(fig)  # Display the figure in Streamlit
-
-        # Get the feature importance as an array
-        importance = model.feature_importances_
-
-        # Create a DataFrame to represent feature importance
-        feature_importance_df = pd.DataFrame({
-            'Feature': X.columns,  # Feature names
-            'Importance': importance  # Feature importance
-        })
-
-        # Now you can sort the DataFrame by feature importance if you wish
-        feature_importance_df = feature_importance_df.sort_values(by='Importance', ascending=False)
-
-        # Identify the top 7 most important features
-        top7_features = feature_importance_df['Feature'].head(7)
-
-        # Remove rows where top_bottom is NaN (i.e., predictions not in the top or bottom quartile)
-        dataset_binary = dataset.dropna(subset=['top_bottom'])
-
-
-        # Define the features (X) and the target variable (y)
-        X_binary = dataset_binary[top7_features]
-        y_binary = dataset_binary['top_bottom']
-
-        # Perform one-hot encoding on the categorical features
-        X_binary_encoded = pd.get_dummies(X_binary, prefix_sep='==')
-
-        # Train the decision tree with only the top 7 most important features
-        dt_model = DecisionTreeClassifier(max_depth=4)  # fix max depth
-        dt_model.fit(X_binary_encoded, y_binary)
-
-        # Define the size of the figure
-        fig, ax = plt.subplots(figsize=(30, 30))
-
-        # Plot the decision tree
-        plot_tree(dt_model, feature_names=X_binary_encoded.columns, class_names=dt_model.classes_
-                , filled=True, ax=ax,
-                rounded=True,
-                fontsize=10)
-
-        # Display the figure in Streamlit
-        st.pyplot(fig)
-
-    ###################################
-        #explain tree rules
-        # Use the function get_rules to extract dt rules
-
-        rules_top25 = get_rules(dt_model, X_binary_encoded.columns, dt_model.classes_, 'Top25%')
-        rules_Bottom25 = get_rules(dt_model, X_binary_encoded.columns, dt_model.classes_, 'Bottom25%')
-
-        # Display the rules in Streamlit with modified background color
-        st.markdown("\n\n**Rules TOP25% of the Model**")
-        for rule in rules_top25:
-            st.markdown(f"<div class='rules-box-top'>{rule}</div>", unsafe_allow_html=True)
-            
-        st.markdown("\n\n**Rules BOTTOM25% of the Model**")
-        for rule in rules_Bottom25:
-            st.markdown(f"<div class='rules-box-bottom'>{rule}</div>", unsafe_allow_html=True)
-
-
-        #now we want to measure the uplift of the subset defined by the dt (for both bottom and top)
-        # Select the same features as used for the model and apply the same transformations
-        X_original = dataset[top7_features]
-        X_original_encoded = pd.get_dummies(X_original, prefix_sep='==')
-
-        # Use the trained model to predict the classes
-        dataset['dt_classification'] = dt_model.predict(X_original_encoded)
-
-       
-        from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
-
-        # Define the true classes and predicted classes
-        true_classes = dataset['top_bottom']
-        predicted_classes = dataset['dt_classification']
-
-        # Compute confusion matrix
-        cf = confusion_matrix(true_classes, predicted_classes, labels=["Top25%", "Bottom25%"])
-
-        # Display the confusion matrix
-        st.write(cf)
-
-        # Calculate metrics
-        accuracy = accuracy_score(true_classes, predicted_classes)
-        precision = precision_score(true_classes, predicted_classes, average='weighted')
-        recall = recall_score(true_classes, predicted_classes, average='weighted')
-        f1 = f1_score(true_classes, predicted_classes, average='weighted')
-
-        st.write(f"Accuracy: {accuracy}")
-        st.write(f"Precision: {precision}")
-        st.write(f"Recall: {recall}")
-        st.write(f"F1 Score: {f1}")
-        
-        
-        # Create an empty DataFrame to store the results
-        results_df = pd.DataFrame(columns=[ "KPI", "TG Acceptors","TG Acceptance (%)", "CG Acceptors","CG Acceptance (%)", "Uplift (%)", "P-value"])
-
-        for value in ['Top25%','Bottom25%']:
-            filtered_dataset = dataset.loc[dataset['dt_classification'] == value]
-            result_df = calculate_metrics2(filtered_dataset, kpi_original, tgcg_column)
-            if not result_df.empty:
-                for index, row in result_df.iterrows():
-                    new_row = pd.DataFrame({
-                        "KPI": [kpi_original],
-                        "TG Acceptors": [row["TG Acceptors"]],
-                        "TG Acceptance (%)": [row["TG Acceptance (%)"]],
-                        "CG Acceptors": [row["CG Acceptors"]],
-                        "CG Acceptance (%)": [row["CG Acceptance (%)"]],
-                        "Uplift (%)": [row["Uplift (%)"]],
-                        "P-value": [row["P-value"]],
-                    })
-                    results_df = pd.concat([results_df, new_row], ignore_index=True)
-
-            results_df["TG Acceptors"] = results_df["TG Acceptors"].astype(float).round(0).astype(int)
-            results_df["CG Acceptors"] = results_df["CG Acceptors"].astype(float).round(0).astype(int)
-
-        st.markdown(f"**Results of the simplified model**")
-        st.dataframe(results_df.style.apply(highlight_pvalue, axis=1))  
