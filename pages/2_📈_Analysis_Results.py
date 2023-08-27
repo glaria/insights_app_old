@@ -129,7 +129,7 @@ for seg_column in continuous_segmentation_columns:
         control_df = oversampled_df[oversampled_df[tgcg_column] == 'control'][[tgcg_column, seg_column,kpi]]
 
         #this penalty is added to avoid segments with a lot of zeroes in the kadane algorithm
-        control_df[kpi] = control_df[kpi] +target_acceptance 
+        control_df[kpi] = control_df[kpi] +target_acceptance
 
         # Sort the dataframes
         target_df.sort_values(by=seg_column, inplace=True)
@@ -154,10 +154,9 @@ for seg_column in continuous_segmentation_columns:
         # Find the subintervals that maximize the sum of granular_uplift
         granular_uplift_array = concatenated_df['granular_uplift'].values
         max_granular_uplift, start_index, end_index = kadane_algorithm(granular_uplift_array)
-
         # Ensure that start_index is less than or equal to end_index
         if start_index > end_index:
-            start_index, end_index = end_index, start_index
+            max_granular_uplift, start_index, end_index = kadane_algorithm_mod(granular_uplift_array)
 
         # Get the start and end values from 'concatenated_df' using the indices obtained
         start_value = concatenated_df.iloc[start_index][seg_column]
@@ -264,6 +263,3 @@ fig.update_layout(
 
 # Display the figure in the Streamlit user interface.
 st.plotly_chart(fig)
-
-
-st.write("4) Add filter feature to select certain values of segmentation columns")

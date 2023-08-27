@@ -24,7 +24,7 @@ def process_file(uploaded_file, separator):
     if uploaded_file:
         try:
             if uploaded_file.type == "text/csv":
-                data = pd.read_csv(uploaded_file, sep=separator, error_bad_lines=False)
+                data = pd.read_csv(uploaded_file, sep=separator, on_bad_lines='skip')
             elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
                 data = pd.read_excel(uploaded_file)
             else:
